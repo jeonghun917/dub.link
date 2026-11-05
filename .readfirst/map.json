@@ -892,6 +892,18 @@
         "packages/hubspot-app/**"
       ],
       "checks": []
+    },
+    {
+      "id": "link-writes-stay-in-step",
+      "rule": "A link create, update or delete changes Prisma, the Redis link cache (linkCache) and Tinybird (recordLink) together; an update that changes the domain or key also evicts the old cache entry.",
+      "why": "Redirects are served from linkCache and analytics from Tinybird: a write that skips one serves a stale or deleted link, or drops it from analytics.",
+      "files": [
+        "apps/web/lib/api/links/create-link.ts",
+        "apps/web/lib/api/links/update-link.ts",
+        "apps/web/lib/api/links/delete-link.ts",
+        "apps/web/lib/api/links/bulk-delete-links.ts"
+      ],
+      "checks": []
     }
   ],
   "ignore": [],
