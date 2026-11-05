@@ -1,0 +1,1070 @@
+{
+  "format": "readfirst/map@1",
+  "groups": [
+    {
+      "id": "agents",
+      "title": "Agent skills (SKILL.md) telling coding agents how to add background jobs and Playwright API specs",
+      "files": [
+        ".agents/**"
+      ],
+      "checks": [],
+      "risks": []
+    },
+    {
+      "id": "github",
+      "title": "CI: Playwright e2e on PRs, public API tests on deployments, prettier check, issue-label copy",
+      "files": [
+        ".github/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm run prettier-check",
+          "why": "the prettier check CI runs"
+        }
+      ],
+      "risks": [
+        {
+          "text": "The Playwright workflow pushes only packages/tinybird/datasources/*.datasource to Tinybird Local, never the pipes, so CI passes even when a pipe the code calls is broken - .github/workflows/playwright.yaml:168",
+          "files": [
+            ".github/workflows/playwright.yaml"
+          ]
+        },
+        {
+          "text": "e2e.yaml runs `pnpm test` (vitest) against the deployment URL after every successful Vercel deployment, using secret E2E_* tokens: it tests the live preview, not the PR's local build - .github/workflows/e2e.yaml:37",
+          "files": [
+            ".github/workflows/e2e.yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-links",
+      "title": "Link create/update/delete (Prisma + Redis cache + Tinybird + R2), the redirect middleware, domains/tags APIs, sitemap import",
+      "files": [
+        "apps/web/app/[domain]/**",
+        "apps/web/app/api/domains/**",
+        "apps/web/app/api/links/**",
+        "apps/web/app/api/misc/**",
+        "apps/web/app/api/qr/**",
+        "apps/web/app/api/tags/**",
+        "apps/web/app/cloaked/**",
+        "apps/web/app/password/**",
+        "apps/web/lib/api/domains/**",
+        "apps/web/lib/api/links/**",
+        "apps/web/lib/api/tags/**",
+        "apps/web/lib/edge-config/**",
+        "apps/web/lib/links/**",
+        "apps/web/lib/middleware/**",
+        "apps/web/lib/planetscale/**",
+        "apps/web/lib/qr/**",
+        "apps/web/lib/sitemaps/**",
+        "apps/web/lib/storage/**",
+        "apps/web/lib/tracking/**",
+        "apps/web/lib/upstash/**",
+        "apps/web/lib/storage.ts",
+        "apps/web/middleware.ts"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web test",
+          "why": "vitest integration suite under apps/web/tests (needs E2E_* env, runs against a deployed URL)"
+        },
+        {
+          "run": "pnpm --filter web run lint",
+          "why": "next lint of apps/web"
+        },
+        {
+          "run": "pnpm --filter web run test:e2e",
+          "why": "Playwright API specs for links/domains/tags against a local DB"
+        }
+      ],
+      "risks": [
+        {
+          "text": "updateLink spreads `...rest` of the incoming link straight into prisma.link.update, so any extra field on the object reaches the database; new non-column fields must be stripped in the destructure above it - apps/web/lib/api/links/update-link.ts:87 (history aca8a98, which had to strip partnerLinkDetails for that reason)",
+          "files": [
+            "apps/web/lib/api/links/update-link.ts"
+          ]
+        },
+        {
+          "text": "R2 image deletion must go through getOwnedLinkImageKey, which only accepts the asset origin with path images/{linkId} or images/{linkId}_{nonce} and rebuilds the key from the link id; slicing a key out of a client-supplied image URL deletes other links' or arbitrary objects, and a new image URL shape is silently never deleted - apps/web/lib/api/links/get-owned-link-image-key.ts:15 (history 6a3726c)",
+          "files": [
+            "apps/web/lib/api/links/get-owned-link-image-key.ts",
+            "apps/web/lib/api/links/delete-link.ts",
+            "apps/web/lib/api/links/bulk-delete-links.ts",
+            "apps/web/app/api/links/bulk/route.ts"
+          ]
+        },
+        {
+          "text": "Redis, Tinybird and R2 updates run in waitUntil + Promise.allSettled after the database write, so a failure is swallowed and never retried; a changed key or domain is only evicted from the cache if oldLink carries the old domain and key - apps/web/lib/api/links/update-link.ts:175 (history 6a3726c)",
+          "files": [
+            "apps/web/lib/api/links/update-link.ts",
+            "apps/web/lib/api/links/delete-link.ts"
+          ]
+        },
+        {
+          "text": "bulkDeleteLinks decrements totalLinks on links[0].projectId for every batch, and runs cache/Tinybird/R2 cleanup on all passed links even if fewer rows were deleted; passing links from two workspaces corrupts the counters - apps/web/lib/api/links/bulk-delete-links.ts:72 (history 6a3726c)",
+          "files": [
+            "apps/web/lib/api/links/bulk-delete-links.ts"
+          ]
+        },
+        {
+          "text": "The sitemap importer trusts Content-Length, then buffers the whole body with response.arrayBuffer() before the real 10 MB check, and inflates gzip with no output cap: a chunked or understated response, or a small gzip bomb, is held fully in memory - apps/web/lib/sitemaps/import-tracked-sitemaps.ts:85",
+          "files": [
+            "apps/web/lib/sitemaps/import-tracked-sitemaps.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-auth-api-core",
+      "title": "Auth (NextAuth, API keys, tokens), withWorkspace/withSession wrappers, permissions, Zod schemas, OpenAPI, server actions, AI helpers",
+      "files": [
+        "apps/web/app/api/(old)/**",
+        "apps/web/app/api/ai/**",
+        "apps/web/app/api/auth/**",
+        "apps/web/app/api/docs/**",
+        "apps/web/app/api/folders/**",
+        "apps/web/app/api/me/**",
+        "apps/web/app/api/og/**",
+        "apps/web/app/api/tokens/**",
+        "apps/web/app/api/unsplash/**",
+        "apps/web/app/api/user/**",
+        "apps/web/app/api/utm/**",
+        "apps/web/app/api/workspaces/**",
+        "apps/web/app/api/route.ts",
+        "apps/web/lib/actions/**",
+        "apps/web/lib/ai/**",
+        "apps/web/lib/api/billing/**",
+        "apps/web/lib/api/customers/**",
+        "apps/web/lib/api/folders/**",
+        "apps/web/lib/api/oauth/**",
+        "apps/web/lib/api/rbac/**",
+        "apps/web/lib/api/tokens/**",
+        "apps/web/lib/api/utils/**",
+        "apps/web/lib/api/workspaces/**",
+        "apps/web/lib/api/cors.ts",
+        "apps/web/lib/api/create-downloadable-export.ts",
+        "apps/web/lib/api/create-id.ts",
+        "apps/web/lib/api/environment.ts",
+        "apps/web/lib/api/error-codes.ts",
+        "apps/web/lib/api/errors.ts",
+        "apps/web/lib/api/get-ratelimit-for-plan.ts",
+        "apps/web/lib/api/is-private-ip.ts",
+        "apps/web/lib/api/pagination.ts",
+        "apps/web/lib/api/safe-fetch-node.ts",
+        "apps/web/lib/api/safe-fetch.ts",
+        "apps/web/lib/api/users.ts",
+        "apps/web/lib/api/utils.ts",
+        "apps/web/lib/api/validate-allowed-hostnames.ts",
+        "apps/web/lib/auth/**",
+        "apps/web/lib/constants/**",
+        "apps/web/lib/customers/**",
+        "apps/web/lib/e2e/**",
+        "apps/web/lib/fetchers/**",
+        "apps/web/lib/folder/**",
+        "apps/web/lib/http/**",
+        "apps/web/lib/onboarding/**",
+        "apps/web/lib/openapi/**",
+        "apps/web/lib/prisma/**",
+        "apps/web/lib/zod/**",
+        "apps/web/lib/assert-env.ts",
+        "apps/web/lib/client-access-check.ts",
+        "apps/web/lib/dotenv-flow.d.ts",
+        "apps/web/lib/dub.ts",
+        "apps/web/lib/encryption.ts",
+        "apps/web/lib/exceeded-limit-error.ts",
+        "apps/web/lib/get-integration-guide-markdown.ts",
+        "apps/web/lib/jackson.ts",
+        "apps/web/lib/names.ts",
+        "apps/web/lib/next-auth.d.ts",
+        "apps/web/lib/plan-capabilities.ts",
+        "apps/web/lib/types.ts",
+        "apps/web/lib/well-known.ts",
+        "apps/web/lib/workspace-roles.ts"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web test",
+          "why": "vitest integration suite under apps/web/tests (needs E2E_* env, runs against a deployed URL)"
+        },
+        {
+          "run": "pnpm --filter web run lint",
+          "why": "next lint of apps/web"
+        }
+      ],
+      "risks": [
+        {
+          "text": "withWorkspace only checks permissions when requiredPermissions is non-empty and the default is [] (and requiredPlan defaults to every plan), so a new route that forgets them is open to any workspace member and any scoped token that reaches it - apps/web/lib/auth/workspace.ts:69",
+          "files": [
+            "apps/web/lib/auth/workspace.ts"
+          ]
+        },
+        {
+          "text": "authActionClient only checks that the user belongs to the workspace in the input, not their role or permissions; actions that change data must call throw-if-no-permission themselves - apps/web/lib/actions/safe-action.ts:40",
+          "files": [
+            "apps/web/lib/actions/safe-action.ts",
+            "apps/web/lib/actions/throw-if-no-permission.ts"
+          ]
+        },
+        {
+          "text": "bcryptjs uses only the first 72 bytes but the password schema allows 1000 characters and hashPassword does no pre-hashing, so longer passwords are silently truncated and two passwords sharing a 72-byte prefix both log in - apps/web/lib/auth/password.ts:4 (schema apps/web/lib/zod/schemas/auth.ts:6)",
+          "files": [
+            "apps/web/lib/auth/password.ts",
+            "apps/web/lib/zod/schemas/auth.ts"
+          ]
+        },
+        {
+          "text": "The support-chat size limit reads only Content-Length and then `await req.json()` buffers the whole body; a chunked request or one with an understated header skips the 413 (signed-in users only) - apps/web/app/api/ai/support-chat/route.ts:41",
+          "files": [
+            "apps/web/app/api/ai/support-chat/route.ts"
+          ]
+        },
+        {
+          "text": "Fetching a user-supplied URL with plain fetch bypasses the private-IP (SSRF) guard; only safeFetch / safeFetchNode resolve and check the host - apps/web/lib/api/safe-fetch.ts:175",
+          "files": [
+            "apps/web/lib/api/safe-fetch.ts",
+            "apps/web/lib/api/safe-fetch-node.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-billing-integrations",
+      "title": "Stripe webhooks (app billing and Stripe Connect conversion tracking), QStash background jobs, customer webhook delivery, third-party integrations",
+      "files": [
+        "apps/web/app/(ee)/**",
+        "apps/web/app/api/callback/**",
+        "apps/web/app/api/integrations/**",
+        "apps/web/app/api/jobs/**",
+        "apps/web/app/api/oauth/**",
+        "apps/web/app/api/providers/**",
+        "apps/web/app/api/slack/**",
+        "apps/web/app/api/webhooks/**",
+        "apps/web/lib/api/conversions/**",
+        "apps/web/lib/axiom/**",
+        "apps/web/lib/cron/**",
+        "apps/web/lib/currencyapi/**",
+        "apps/web/lib/domain-connect/**",
+        "apps/web/lib/dynadot/**",
+        "apps/web/lib/email/**",
+        "apps/web/lib/integrations/**",
+        "apps/web/lib/jobs/**",
+        "apps/web/lib/plain/**",
+        "apps/web/lib/slack/**",
+        "apps/web/lib/stripe/**",
+        "apps/web/lib/webhook/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web test",
+          "why": "vitest integration suite under apps/web/tests (needs E2E_* env, runs against a deployed URL)"
+        },
+        {
+          "run": "pnpm --filter web run lint",
+          "why": "next lint of apps/web"
+        }
+      ],
+      "risks": [
+        {
+          "text": "invoice-paid takes a 7-day Redis NX lock on the invoice id before the amount, FX and lead checks and before the sale is saved and never releases it, so if a later step throws the Stripe retry is answered 'already processed' and the sale is lost - apps/web/app/(ee)/api/stripe/integration/webhook/invoice-paid.ts:83",
+          "files": [
+            "apps/web/app/(ee)/api/stripe/integration/webhook/invoice-paid.ts",
+            "apps/web/app/(ee)/api/stripe/integration/webhook/checkout-session-completed.ts"
+          ]
+        },
+        {
+          "text": "convertCurrency returns the original amount and currency when the Redis fxRates:usd entry is missing and callers overwrite the invoice currency with the result, so a non-USD amount can be recorded as a sale in the wrong currency - apps/web/lib/analytics/convert-currency.ts:14",
+          "files": [
+            "apps/web/lib/analytics/convert-currency.ts"
+          ]
+        },
+        {
+          "text": "The jobs process route answers 2xx for an unknown job, bad envelope or ZodError, so a job missing from the registry is silently dropped instead of retried - apps/web/app/api/jobs/process/[jobName]/route.ts:71",
+          "files": [
+            "apps/web/app/api/jobs/process/[jobName]/route.ts",
+            "apps/web/lib/jobs/registry.ts"
+          ]
+        },
+        {
+          "text": "Tailwind scans only app/**, ui/** and packages/ui/src, but lib/integrations/*/ui/*.tsx also holds components with class names; a class used only there is missing from the build - apps/web/tailwind.config.ts:8 (e.g. apps/web/lib/integrations/stripe/ui/settings.tsx)",
+          "files": [
+            "apps/web/tailwind.config.ts",
+            "apps/web/lib/integrations/stripe/ui/settings.tsx"
+          ]
+        },
+        {
+          "text": "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY(_LIVE) is inlined into the browser bundle at build time, so changing it in the environment needs a rebuild - apps/web/lib/stripe/client.ts:9",
+          "files": [
+            "apps/web/lib/stripe/client.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-analytics",
+      "title": "Tinybird-backed analytics queries, event recording, API/webhook logs",
+      "files": [
+        "apps/web/app/api/analytics/**",
+        "apps/web/app/api/dashboards/**",
+        "apps/web/app/api/logs/**",
+        "apps/web/lib/analytics/**",
+        "apps/web/lib/api-logs/**",
+        "apps/web/lib/tinybird/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web test",
+          "why": "vitest integration suite under apps/web/tests (needs E2E_* env, runs against a deployed URL)"
+        },
+        {
+          "run": "pnpm --filter web run lint",
+          "why": "next lint of apps/web"
+        }
+      ],
+      "risks": [
+        {
+          "text": "The Tinybird pipe names are strings (v4_count, v4_timeseries, v4_group_by, v4_group_by_link_metadata, get_click_event ...) that must match packages/tinybird/pipes/*.pipe exactly; a rename in either place fails only at query time - apps/web/lib/analytics/get-analytics.ts:102",
+          "files": [
+            "apps/web/lib/analytics/get-analytics.ts",
+            "apps/web/lib/tinybird/get-click-event.ts"
+          ]
+        },
+        {
+          "text": "Pipe response schemas use .default(...) for columns, so a renamed or missing column in a pipe silently becomes 0/empty in the dashboard instead of an error - apps/web/lib/analytics/get-analytics.ts:107",
+          "files": [
+            "apps/web/lib/analytics/get-analytics.ts"
+          ]
+        },
+        {
+          "text": "Tinybird kills queries after 30s; withTinybirdTimeout turns only an error containing 'Timeout exceeded' into a 400, so a wording change upstream turns long ranges into 500s - apps/web/lib/analytics/utils/with-tinybird-timeout.ts:6",
+          "files": [
+            "apps/web/lib/analytics/utils/with-tinybird-timeout.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-app-pages",
+      "title": "Next.js App Router pages and layouts for the dashboard (app.dub.co), custom URI scheme, robots/sitemap",
+      "files": [
+        "apps/web/app/app.dub.co/**",
+        "apps/web/app/custom-uri-scheme/**",
+        "apps/web/app/wellknown/**",
+        "apps/web/app/layout.tsx",
+        "apps/web/app/manifest.ts",
+        "apps/web/app/not-found-hint.tsx",
+        "apps/web/app/not-found.tsx",
+        "apps/web/app/providers.tsx",
+        "apps/web/app/robots.ts",
+        "apps/web/app/sitemap.ts"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web run lint",
+          "why": "next lint of apps/web"
+        },
+        {
+          "run": "pnpm --filter web run test:e2e",
+          "why": "Playwright workspace UI specs on a local DB"
+        }
+      ],
+      "risks": [
+        {
+          "text": "Page bodies size themselves with min-h-[calc(100dvh-var(--page-banner-height)-var(--page-top-margin)-var(--page-bottom-margin)-1px)]; the variables are set only by MainNav, so a page rendered outside it, or a new calc that omits the banner variable, overflows when the upgrade banner shows - apps/web/app/app.dub.co/(dashboard)/[slug]/links/[...link]/page-client.tsx:136 (history 88c41ad)",
+          "files": [
+            "apps/web/app/app.dub.co/(dashboard)/[slug]/links/[...link]/page-client.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-ui",
+      "title": "Dashboard React components, SWR hooks, styles",
+      "files": [
+        "apps/web/lib/hooks/**",
+        "apps/web/lib/swr/**",
+        "apps/web/public/**",
+        "apps/web/styles/**",
+        "apps/web/ui/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web run lint",
+          "why": "next lint of apps/web"
+        }
+      ],
+      "risks": [
+        {
+          "text": "The 36px banner height is hard-coded in four places that must change together: the upgrade banner (h-9), MainNav's top-9/calc(100vh-36px)/--page-banner-height:36px, and every page min-height calc using that variable - apps/web/ui/layout/main-nav.tsx:113 (history 88c41ad)",
+          "files": [
+            "apps/web/ui/layout/main-nav.tsx",
+            "apps/web/ui/layout/upgrade-banner.tsx",
+            "apps/web/ui/layout/page-content/page-content-with-side-panel.tsx"
+          ]
+        },
+        {
+          "text": "Whether the banner shows is computed twice, in useUpgradeBannerVisibility and in useDashboardBannerVisible (which MainNav uses); changing the conditions in only one leaves the layout offset out of step with the banner - apps/web/ui/layout/upgrade-banner.tsx:24 (history 88c41ad)",
+          "files": [
+            "apps/web/ui/layout/upgrade-banner.tsx",
+            "apps/web/lib/hooks/use-dashboard-banner-visible.ts"
+          ]
+        },
+        {
+          "text": "MainNav's hasBanner prop overrides the hook (`hasBanner ?? hasBannerFromHook`); a layout that passes it by hand shows or hides the offset regardless of the real workspace state - apps/web/ui/layout/main-nav.tsx:79 (history 88c41ad)",
+          "files": [
+            "apps/web/ui/layout/main-nav.tsx"
+          ]
+        },
+        {
+          "text": "NEXT_PUBLIC_VERCEL_URL is read in client code to pick the cookie domain and is inlined at build, so it cannot be changed without a rebuild - apps/web/ui/modals/modal-provider.tsx:102",
+          "files": [
+            "apps/web/ui/modals/modal-provider.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-tests",
+      "title": "Vitest integration tests (run against a deployed URL) and Playwright API/UI e2e specs",
+      "files": [
+        "apps/web/playwright/**",
+        "apps/web/tests/**",
+        "apps/web/playwright.config.ts",
+        "apps/web/vitest.config.ts"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web test",
+          "why": "vitest integration suite under apps/web/tests (needs E2E_* env, runs against a deployed URL)"
+        },
+        {
+          "run": "pnpm --filter web run test:e2e",
+          "why": "Playwright API and workspace specs (local DB)"
+        }
+      ],
+      "risks": [
+        {
+          "text": "The vitest suite is not unit tests: tests/utils/env.ts parses E2E_BASE_URL and the E2E_TOKEN* values at import and throws if absent, and requests go to the deployed URL; without them most files fail at import - apps/web/tests/utils/env.ts:4",
+          "files": [
+            "apps/web/tests/utils/env.ts"
+          ]
+        },
+        {
+          "text": "vitest only looks in ./tests, so a *.test.ts placed elsewhere under apps/web never runs - apps/web/vitest.config.ts:9",
+          "files": [
+            "apps/web/vitest.config.ts"
+          ]
+        },
+        {
+          "text": "Playwright refuses to start unless DATABASE_URL points at localhost, and API specs must not wait for waitUntil/R2 side effects because CI has no STORAGE_* - apps/web/playwright.config.ts:5 (.agents/skills/playwright-api-tests/SKILL.md)",
+          "files": [
+            "apps/web/playwright.config.ts"
+          ]
+        },
+        {
+          "text": "getRelativeUrl tests mock `server-only` and pin the rule that localhost/private/single-label image hosts are dropped from scraped metatags; loosening publicHostedImageSchema reintroduces failed link creation from preview sites - apps/web/tests/misc/metatags-relative-url.test.ts:3 (history 11b0994)",
+          "files": [
+            "apps/web/tests/misc/metatags-relative-url.test.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-db-config",
+      "title": "Prisma schema, dev seed script, Next/Tailwind/Vercel config and env template for apps/web",
+      "files": [
+        "apps/web/guides/**",
+        "apps/web/prisma/**",
+        "apps/web/scripts/**",
+        "apps/web/.env.example",
+        "apps/web/docker-compose.yml",
+        "apps/web/dotenv-flow-config.d.ts",
+        "apps/web/instrumentation.ts",
+        "apps/web/next.config.js",
+        "apps/web/package.json",
+        "apps/web/postcss.config.js",
+        "apps/web/tailwind.config.ts",
+        "apps/web/tsconfig.json",
+        "apps/web/vercel.json"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web run prisma:generate",
+          "why": "regenerate the Prisma client after schema edits"
+        }
+      ],
+      "risks": [
+        {
+          "text": "schema.prisma uses relationMode = \"prisma\" (no database foreign keys): cascades are emulated by the Prisma client, so raw SQL or TRUNCATE bypasses them and orphans rows - apps/web/prisma/schema/schema.prisma:4",
+          "files": [
+            "apps/web/prisma/schema/schema.prisma"
+          ]
+        },
+        {
+          "text": "The Prisma client is generated from prisma/schema (a folder); code sees new fields only after `pnpm --filter web run prisma:generate` (dev/build/test run it). There are no migration files: the schema reaches databases with `prisma db push` (prisma:push, CI step), which can drop data on destructive changes - apps/web/package.json:15",
+          "files": [
+            "apps/web/package.json"
+          ]
+        },
+        {
+          "text": "The dev seed must create workspace, users, domains, folders and integrations in that order (later inserts look up earlier rows); reordering breaks seeded state - apps/web/scripts/dev/seed.ts:292 (history 465d01c)",
+          "files": [
+            "apps/web/scripts/dev/seed.ts"
+          ]
+        },
+        {
+          "text": "seed --truncate empties a hard-coded table list with per-table errors swallowed (new tables are never cleared) and, despite the README, asks no confirmation; the only guard is assertLocalDatabaseEnv - apps/web/scripts/dev/seed.ts:202",
+          "files": [
+            "apps/web/scripts/dev/seed.ts"
+          ]
+        },
+        {
+          "text": "reactStrictMode is false, so dev never double-runs effects; effects that are unsafe to repeat will not be caught locally - apps/web/next.config.js:26",
+          "files": [
+            "apps/web/next.config.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packages-ui",
+      "title": "@dub/ui: React component library built with tsup to dist and consumed by apps/web",
+      "files": [
+        "packages/ui/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter @dub/ui run check-types",
+          "why": "types of @dub/ui"
+        },
+        {
+          "run": "pnpm --filter @dub/ui run lint",
+          "why": "lint rules of @dub/ui"
+        }
+      ],
+      "risks": [
+        {
+          "text": "apps/web imports @dub/ui from dist, so edits in src show up in web only while `tsup --watch` (pnpm dev) runs or after `pnpm build:packages` - packages/ui/package.json:6"
+        },
+        {
+          "text": "Tooltip keeps the CTA clickable through trigger onClick(setOpen(true)) and an onBlur that stays open when focus moves into contentRef; removing either makes buttons in tooltip content do nothing after the trigger is clicked - packages/ui/src/tooltip.tsx:99 (history 24e6930)",
+          "files": [
+            "packages/ui/src/tooltip.tsx"
+          ]
+        },
+        {
+          "text": "Overlay z-indexes are coordinated across files: Modal/Popover drawers z-50, Sheet z-40, nested sheets max-sm:z-50 so they open above mobile modals; changing one number reorders layers - packages/ui/src/sheet.tsx:18 (history c250a38)",
+          "files": [
+            "packages/ui/src/sheet.tsx"
+          ]
+        },
+        {
+          "text": "Date presets put focus on a tabIndex wrapper rather than the cmdk root; moving it makes cmdk focus the list on hover and the list jumps - packages/ui/src/date-picker/presets.tsx:82 (history eab8bbe)",
+          "files": [
+            "packages/ui/src/date-picker/presets.tsx"
+          ]
+        },
+        {
+          "text": "The mini chart's fade mask extends past the bounding box (y=-1, height=3) so the stroke is not clipped at peaks; tightening it or the padding clips the line - packages/ui/src/mini-area-chart.tsx:123 (history 9e7b519)",
+          "files": [
+            "packages/ui/src/mini-area-chart.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packages-utils",
+      "title": "@dub/utils: shared constants and helpers (domains, URLs, currency), built with tsup to dist",
+      "files": [
+        "packages/utils/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter @dub/utils run check-types",
+          "why": "types of @dub/utils"
+        },
+        {
+          "run": "pnpm --filter @dub/utils run lint",
+          "why": "lint rules of @dub/utils"
+        }
+      ],
+      "risks": [
+        {
+          "text": "apps/web consumes @dub/utils from dist (main ./dist/index.mjs), so src edits are invisible to web until a build or `tsup --watch` - packages/utils/package.json:6"
+        },
+        {
+          "text": "APP_DOMAIN, API_DOMAIN and isAppHostname branch on NEXT_PUBLIC_VERCEL_ENV / NEXT_PUBLIC_VERCEL_URL, inlined at build; unset, they fall back to localhost:8888 / preview.dub.co - packages/utils/src/constants/main.ts:12"
+        },
+        {
+          "text": "R2_URL reads STORAGE_BASE_URL, which is not NEXT_PUBLIC_, so browser code always gets the dubassets.com fallback while server code may see another host; image-ownership checks compare against it - packages/utils/src/constants/main.ts:51",
+          "files": [
+            "packages/utils/src/constants/main.ts"
+          ]
+        },
+        {
+          "text": "isZeroDecimalCurrency decides whether amounts are cents or whole units in money formatting and FX conversion; a wrong entry misstates sales 100x - packages/utils/src/functions/currency-zero-decimal.ts:1"
+        }
+      ]
+    },
+    {
+      "id": "packages-tailwind-config",
+      "title": "Shared Tailwind preset (colors, animations, plugins) used by web and ui",
+      "files": [
+        "packages/tailwind-config/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "The preset's content glob only covers its own ./src; which files get scanned for web is decided in apps/web/tailwind.config.ts, and animations/keyframes used by ui must be defined here - packages/tailwind-config/tailwind.config.ts:9",
+          "files": [
+            "packages/tailwind-config/tailwind.config.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packages-email",
+      "title": "@dub/email: React Email templates and sendEmail via Resend or SMTP, consumed as TypeScript source by web",
+      "files": [
+        "packages/email/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "sendEmail and sendBatchEmail log a message and return normally when neither Resend nor SMTP is configured, so a missing email env var looks like success - packages/email/src/index.ts:23",
+          "files": [
+            "packages/email/src/index.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packages-cli",
+      "title": "dub-cli: command line tool for the Dub API with OAuth login",
+      "files": [
+        "packages/cli/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter dub-cli run typecheck",
+          "why": "types of dub-cli"
+        }
+      ],
+      "risks": [
+        {
+          "text": "The OAuth client id is hard-coded with a TODO and the endpoints point at production app.dub.co/api.dub.co - packages/cli/src/utils/oauth.ts:6",
+          "files": [
+            "packages/cli/src/utils/oauth.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packages-stripe-app",
+      "title": "Stripe App (UI extension) that links a Stripe account to Dub for conversion tracking",
+      "files": [
+        "packages/stripe-app/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter com.example.dub test",
+          "why": "jest for the Stripe app (no spec files are committed)"
+        },
+        {
+          "run": "pnpm --filter com.example.dub run lint",
+          "why": "eslint of the Stripe app src"
+        }
+      ],
+      "risks": [
+        {
+          "text": "The OAuth client id and hosts are hard-coded to production and the redirect URL is built from the Stripe app id apps-oauth/dub.co; changing either breaks the install flow - packages/stripe-app/src/utils/constants.ts:2 (redirect packages/stripe-app/src/utils/oauth.ts:7)",
+          "files": [
+            "packages/stripe-app/src/utils/constants.ts",
+            "packages/stripe-app/src/utils/oauth.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packages-hubspot-app",
+      "title": "HubSpot marketplace app (OAuth) and webhook subscriptions that feed Dub conversions",
+      "files": [
+        "packages/hubspot-app/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "The webhooks component targets https://app.dub.co/api/hubspot/webhook, a route in apps/web, while the app is distributed as marketplace/oauth; CLAUDE.md says webhooks components are only valid for private distribution with static auth, so check HubSpot accepts this combination before changing distribution or auth - packages/hubspot-app/src/app/webhooks/webhooks-hsmeta.json:7",
+          "files": [
+            "packages/hubspot-app/src/app/webhooks/webhooks-hsmeta.json",
+            "packages/hubspot-app/src/app/app-hsmeta.json"
+          ]
+        },
+        {
+          "text": "redirectUrls and permittedUrls.fetch in app-hsmeta.json must match the apps/web callback route and the HubSpot API host; scopes added here must be granted by users on reinstall - packages/hubspot-app/src/app/app-hsmeta.json:10",
+          "files": [
+            "packages/hubspot-app/src/app/app-hsmeta.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packages-tinybird",
+      "title": "Tinybird datasources and pipes for click/lead/sale events and API logs",
+      "files": [
+        "packages/tinybird/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "apps/web calls pipes by name (v4_*, get_click_event, ...) and ingests into these datasources; renaming a pipe or column here breaks queries only at runtime, and CI pushes datasources but not pipes - packages/tinybird/pipes/v4_count.pipe:1 (apps/web/lib/analytics/get-analytics.ts:102)",
+          "files": [
+            "packages/tinybird/pipes/**"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packages-tsconfig",
+      "title": "Shared tsconfig bases",
+      "files": [
+        "packages/tsconfig/**"
+      ],
+      "checks": [],
+      "risks": []
+    },
+    {
+      "id": "packages-workers",
+      "title": "Cloudflare Worker that forwards R2 object-created notifications to the web app",
+      "files": [
+        "packages/workers/**"
+      ],
+      "checks": [],
+      "risks": [
+        {
+          "text": "The worker is deployed by pasting worker.js into the Cloudflare dashboard, so a repo edit does not ship, and its DUB_WEBHOOK_URL and CLOUDFLARE_WORKER_WEBHOOK_SECRET must match the Next route apps/web/app/(ee)/api/cloudflare/webhook/r2-object-created - packages/workers/r2-object-created/README.md:5",
+          "files": [
+            "packages/workers/r2-object-created/worker.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "root",
+      "title": "Monorepo root: pnpm workspace, turbo pipeline, prettier, license",
+      "files": [
+        ".cursorignore",
+        ".gitignore",
+        ".prettierignore",
+        "LICENSE.md",
+        "README.md",
+        "SECURITY.md",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "prettier.config.js",
+        "turbo.json"
+      ],
+      "checks": [
+        {
+          "run": "pnpm run prettier-check",
+          "why": "formatting CI enforces"
+        },
+        {
+          "run": "pnpm run lint",
+          "why": "turbo lint across packages"
+        }
+      ],
+      "risks": [
+        {
+          "text": "turbo `build` and `test` depend on ^build, and apps/web builds need prisma:generate first; running web commands without building packages/ui and packages/utils uses stale or missing dist - turbo.json:6",
+          "files": [
+            "turbo.json"
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r2-delete-owned-keys-only",
+      "rule": "Delete R2 objects for a link only with keys from getOwnedLinkImageKey(image, linkId), and never delete the image the link now uses.",
+      "why": "Otherwise an update or delete can wipe another link's preview image or an arbitrary object.",
+      "files": [
+        "apps/web/lib/api/links/get-owned-link-image-key.ts",
+        "apps/web/lib/api/links/update-link.ts",
+        "apps/web/lib/api/links/delete-link.ts",
+        "apps/web/lib/api/links/bulk-delete-links.ts",
+        "apps/web/app/api/links/bulk/route.ts"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web test",
+          "why": "tests/links delete and bulk-delete"
+        }
+      ]
+    },
+    {
+      "id": "bulk-delete-one-workspace",
+      "rule": "Callers of bulkDeleteLinks must pass links from a single workspace.",
+      "why": "totalLinks is decremented only on links[0].projectId, so mixed lists corrupt usage counts for the other workspaces.",
+      "files": [
+        "apps/web/lib/api/links/bulk-delete-links.ts",
+        "apps/web/app/api/links/bulk/route.ts"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web test",
+          "why": "tests/links/bulk-delete-link.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "user-urls-via-safe-fetch",
+      "rule": "Fetch user-supplied URLs only with safeFetch or safeFetchNode.",
+      "why": "Plain fetch can reach private or internal hosts (SSRF) from our servers.",
+      "files": [
+        "apps/web/lib/api/safe-fetch.ts",
+        "apps/web/lib/api/safe-fetch-node.ts",
+        "apps/web/lib/sitemaps/**",
+        "apps/web/lib/storage.ts"
+      ],
+      "checks": []
+    },
+    {
+      "id": "routes-declare-permissions",
+      "rule": "Every withWorkspace route that reads or changes data declares requiredPermissions (and requiredPlan where gated).",
+      "why": "With the default [] any workspace member, and any scoped API key that reaches the route, passes.",
+      "files": [
+        "apps/web/lib/auth/workspace.ts",
+        "apps/web/app/api/**"
+      ],
+      "checks": [
+        {
+          "run": "pnpm --filter web run test:e2e",
+          "why": "Playwright API specs incl. permissions"
+        }
+      ]
+    },
+    {
+      "id": "actions-check-permissions",
+      "rule": "Server actions built on authActionClient must check role/permission themselves (throwIfNoPermission) before changing workspace data.",
+      "why": "authActionClient only verifies workspace membership, so members of any role could run the action.",
+      "files": [
+        "apps/web/lib/actions/**"
+      ],
+      "checks": []
+    },
+    {
+      "id": "stripe-raw-body-before-parse",
+      "rule": "Stripe webhook routes read the raw body with req.text() and verify it with stripe.webhooks.constructEvent before any JSON parsing or handling.",
+      "why": "Signature verification fails on a re-serialised body and unverified events would let anyone forge sales or subscription changes.",
+      "files": [
+        "apps/web/app/(ee)/api/stripe/webhook/route.ts",
+        "apps/web/app/(ee)/api/stripe/integration/webhook/route.ts"
+      ],
+      "checks": []
+    },
+    {
+      "id": "jobs-registered-by-name",
+      "rule": "Each defineJob is registered in lib/jobs/registry.ts under a key equal to its name and dispatched via job.dispatch; handlers return for permanent skips and throw for transient failures.",
+      "why": "loadJob throws on a name mismatch (500, retried), an unregistered job gets a 2xx and is dropped silently, and a 500 on a bad payload makes QStash retry forever (.agents/skills/jobs-define-job/SKILL.md).",
+      "files": [
+        "apps/web/lib/jobs/**",
+        "apps/web/app/api/jobs/**"
+      ],
+      "checks": []
+    },
+    {
+      "id": "webhook-signature-json-body",
+      "rule": "Customer webhook signatures are HMAC-SHA256 hex over JSON.stringify(payload); keep the signed and sent body identical.",
+      "why": "Any change to serialization or payload shape invalidates every customer's signature check.",
+      "files": [
+        "apps/web/lib/webhook/**"
+      ],
+      "checks": []
+    },
+    {
+      "id": "hubspot-component-layout",
+      "rule": "HubSpot components live in their type's directory under src/app, config files end in -hsmeta.json with a project-unique uid, and cards/settings use hubspot.fetch only for URLs listed in config.permittedUrls.fetch.",
+      "why": "HubSpot project upload rejects misplaced or duplicate-uid components and blocks unlisted fetch URLs (packages/hubspot-app/CLAUDE.md).",
+      "files": [
+        "packages/hubspot-app/**"
+      ],
+      "checks": []
+    }
+  ],
+  "ignore": [],
+  "hotspots": [
+    {
+      "file": "apps/web/app/api/ai/sync-embeddings/fetch-plausible-pageviews.ts",
+      "symbol": "fetchPlausiblePageviews",
+      "line": 5,
+      "labels": [
+        "network",
+        "secrets"
+      ],
+      "rules": [
+        "routes-declare-permissions"
+      ],
+      "note": "Calls out over the network, reads secrets or the environment; called from 1 other file read"
+    },
+    {
+      "file": "apps/web/app/api/ai/sync-embeddings/route.ts",
+      "symbol": "POST",
+      "line": 32,
+      "labels": [
+        "secrets"
+      ],
+      "rules": [
+        "routes-declare-permissions"
+      ],
+      "note": "Reads secrets or the environment; called from 3 other files read"
+    },
+    {
+      "file": "apps/web/app/api/callback/plain/workspace/route.ts",
+      "symbol": "POST",
+      "line": 20,
+      "labels": [
+        "secrets",
+        "auth"
+      ],
+      "rules": [
+        "routes-declare-permissions"
+      ],
+      "note": "Reads secrets or the environment, decides who may do what; called from 2 other files read"
+    },
+    {
+      "file": "apps/web/app/api/og/analytics/route.tsx",
+      "symbol": "GET",
+      "line": 16,
+      "labels": [
+        "network"
+      ],
+      "rules": [
+        "routes-declare-permissions"
+      ],
+      "note": "Calls out over the network"
+    },
+    {
+      "file": "apps/web/app/api/og/load-google-font.ts",
+      "symbol": "fetchGoogleFont",
+      "line": 24,
+      "labels": [
+        "network"
+      ],
+      "rules": [
+        "routes-declare-permissions"
+      ],
+      "note": "Calls out over the network"
+    },
+    {
+      "file": "apps/web/lib/actions/throw-if-no-permission.ts",
+      "symbol": "throwIfNoPermission",
+      "line": 13,
+      "labels": [
+        "auth"
+      ],
+      "rules": [
+        "actions-check-permissions"
+      ],
+      "note": "Decides who may do what; called from 8 other files read"
+    },
+    {
+      "file": "apps/web/lib/api/safe-fetch.ts",
+      "symbol": "resolveHostnameToIps",
+      "line": 44,
+      "labels": [
+        "network"
+      ],
+      "rules": [
+        "user-urls-via-safe-fetch"
+      ],
+      "note": "Calls out over the network"
+    },
+    {
+      "file": "apps/web/lib/api/safe-fetch.ts",
+      "symbol": "query",
+      "line": 48,
+      "labels": [
+        "network"
+      ],
+      "rules": [
+        "user-urls-via-safe-fetch"
+      ],
+      "note": "Calls out over the network"
+    },
+    {
+      "file": "apps/web/lib/api/safe-fetch.ts",
+      "symbol": "fetchWithRedirects",
+      "line": 216,
+      "labels": [
+        "network"
+      ],
+      "rules": [
+        "user-urls-via-safe-fetch"
+      ],
+      "note": "Calls out over the network"
+    },
+    {
+      "file": "apps/web/lib/storage.ts",
+      "symbol": "head",
+      "line": 110,
+      "labels": [
+        "network"
+      ],
+      "rules": [
+        "user-urls-via-safe-fetch"
+      ],
+      "note": "Calls out over the network"
+    },
+    {
+      "file": "apps/web/lib/webhook/click-webhook-workspaces.ts",
+      "symbol": "add",
+      "line": 10,
+      "labels": [
+        "cache"
+      ],
+      "rules": [
+        "webhook-signature-json-body"
+      ],
+      "note": "Reads or writes a cache"
+    },
+    {
+      "file": "apps/web/lib/webhook/click-webhook-workspaces.ts",
+      "symbol": "remove",
+      "line": 17,
+      "labels": [
+        "cache"
+      ],
+      "rules": [
+        "webhook-signature-json-body"
+      ],
+      "note": "Reads or writes a cache"
+    },
+    {
+      "file": "apps/web/lib/webhook/click-webhook-workspaces.ts",
+      "symbol": "has",
+      "line": 24,
+      "labels": [
+        "cache"
+      ],
+      "rules": [
+        "webhook-signature-json-body"
+      ],
+      "note": "Reads or writes a cache"
+    },
+    {
+      "file": "apps/web/lib/webhook/signature.ts",
+      "symbol": "createWebhookSignature",
+      "line": 2,
+      "labels": [
+        "crypto"
+      ],
+      "rules": [
+        "webhook-signature-json-body"
+      ],
+      "note": "Hashes, signs or encrypts; called from 1 other file read"
+    }
+  ]
+}
