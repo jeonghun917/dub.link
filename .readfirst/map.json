@@ -906,7 +906,9 @@
       "checks": []
     }
   ],
-  "ignore": [],
+  "ignore": [
+    ".readfirst/EVIDENCE.md"
+  ],
   "hotspots": [
     {
       "file": "apps/web/app/api/ai/sync-embeddings/fetch-plausible-pageviews.ts",
